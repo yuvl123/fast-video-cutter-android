@@ -18,12 +18,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -66,6 +70,10 @@ fun MainScreen(
     val userEmail by viewModel.userEmail.collectAsStateWithLifecycle()
     val historyList by viewModel.historyList.collectAsStateWithLifecycle()
 
+    var showGoogleDialog by remember { mutableStateOf(false) }
+    var sessionToRename by remember { mutableStateOf<SavedSession?>(null) }
+    var segmentToRenameIndex by remember { mutableStateOf<Int?>(null) }
+
     // Initialize state on launch
     LaunchedEffect(Unit) {
         viewModel.init(context)
@@ -91,6 +99,9 @@ fun MainScreen(
                 if (!success) {
                     Toast.makeText(context, "שגיאה בפרטי הכניסה/הרשמה", Toast.LENGTH_SHORT).show()
                 }
+            },
+            onGoogleSignInClick = {
+                showGoogleDialog = true
             }
         )
     } else {
@@ -231,7 +242,8 @@ fun MainScreen(
                                     HistoryItemCard(
                                         session = session,
                                         onLoadClick = { viewModel.restoreSession(session) },
-                                        onDeleteClick = { viewModel.deleteHistoryItem(context, session.id) }
+                                        onDeleteClick = { viewModel.deleteHistoryItem(context, session.id) },
+                                        onRenameClick = { sessionToRename = session }
                                     )
                                 }
                             }
@@ -344,6 +356,7 @@ fun MainScreen(
                                     onSaveClick = {
                                         viewModel.saveSegment(
                                             context = context,
+                                            segmentIndex = index,
                                             segment = segment,
                                             onSuccess = { msg ->
                                                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -355,6 +368,12 @@ fun MainScreen(
                                     },
                                     onShareClick = {
                                         shareSegment(context, segment)
+                                    },
+                                    onToggleChecked = { checked ->
+                                        viewModel.toggleSegmentChecked(context, index, checked)
+                                    },
+                                    onRenameClick = {
+                                        segmentToRenameIndex = index
                                     }
                                 )
                             }
@@ -366,10 +385,111 @@ fun MainScreen(
             }
         }
     }
+
+    if (showGoogleDialog) {
+        GoogleAccountChooserDialog(
+            onAccountSelected = { email ->
+                showGoogleDialog = false
+                val success = viewModel.loginWithGoogle(context, email)
+                if (!success) {
+                    Toast.makeText(context, "שגיאה בהתחברות עם Google", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { showGoogleDialog = false }
+        )
+    }
+
+    if (sessionToRename != null) {
+        var newName by remember { mutableStateOf(sessionToRename!!.fileName) }
+        AlertDialog(
+            onDismissRequest = { sessionToRename = null },
+            title = { Text("שנה שם היסטוריה", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("שם חדש") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6366F1),
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedLabelColor = Color(0xFF6366F1),
+                        unfocusedLabelColor = Color(0xFF4B5563)
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newName.isNotBlank()) {
+                            viewModel.renameSession(context, sessionToRename!!.id, newName)
+                            sessionToRename = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                ) {
+                    Text("אישור")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToRename = null }) {
+                    Text("ביטול", color = Color(0xFF4B5563))
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+
+    if (segmentToRenameIndex != null) {
+        val segment = segments[segmentToRenameIndex!!]
+        var newName by remember { mutableStateOf(segment.name) }
+        AlertDialog(
+            onDismissRequest = { segmentToRenameIndex = null },
+            title = { Text("שנה שם חלק", fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("שם חדש") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6366F1),
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedLabelColor = Color(0xFF6366F1),
+                        unfocusedLabelColor = Color(0xFF4B5563)
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newName.isNotBlank()) {
+                            viewModel.renameSegment(context, segmentToRenameIndex!!, newName)
+                            segmentToRenameIndex = null
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                ) {
+                    Text("אישור")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { segmentToRenameIndex = null }) {
+                    Text("ביטול", color = Color(0xFF4B5563))
+                }
+            },
+            containerColor = Color.White
+        )
+    }
 }
 
 @Composable
-fun LoginRegisterScreen(onAuthSuccess: (String, String, Boolean) -> Unit) {
+fun LoginRegisterScreen(
+    onAuthSuccess: (String, String, Boolean) -> Unit,
+    onGoogleSignInClick: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoginMode by remember { mutableStateOf(true) }
@@ -414,7 +534,16 @@ fun LoginRegisterScreen(onAuthSuccess: (String, String, Boolean) -> Unit) {
                     label = { Text("אימייל") },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6366F1))
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6366F1),
+                        unfocusedBorderColor = Color(0xFFD1D5DB),
+                        focusedTextColor = Color(0xFF1F2937),
+                        unfocusedTextColor = Color(0xFF1F2937),
+                        focusedLabelColor = Color(0xFF6366F1),
+                        unfocusedLabelColor = Color(0xFF4B5563),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -426,7 +555,16 @@ fun LoginRegisterScreen(onAuthSuccess: (String, String, Boolean) -> Unit) {
                     visualTransformation = PasswordVisualTransformation(),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6366F1))
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6366F1),
+                        unfocusedBorderColor = Color(0xFFD1D5DB),
+                        focusedTextColor = Color(0xFF1F2937),
+                        unfocusedTextColor = Color(0xFF1F2937),
+                        focusedLabelColor = Color(0xFF6366F1),
+                        unfocusedLabelColor = Color(0xFF4B5563),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -448,6 +586,39 @@ fun LoginRegisterScreen(onAuthSuccess: (String, String, Boolean) -> Unit) {
                     )
                 }
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
+                    Text(
+                        text = "או",
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 13.sp
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE5E7EB))
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = onGoogleSignInClick,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1F2937)),
+                    border = BorderStroke(1.dp, Color(0xFFD1D5DB))
+                ) {
+                    Text(
+                        text = "התחבר עם Google",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color(0xFF4B5563)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 TextButton(onClick = { isLoginMode = !isLoginMode }) {
@@ -466,7 +637,8 @@ fun LoginRegisterScreen(onAuthSuccess: (String, String, Boolean) -> Unit) {
 fun HistoryItemCard(
     session: SavedSession,
     onLoadClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onRenameClick: () -> Unit
 ) {
     val date = Date(session.timestamp)
     val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
@@ -484,12 +656,27 @@ fun HistoryItemCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = session.fileName,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = Color(0xFF1F2937)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = session.fileName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color(0xFF1F2937),
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = onRenameClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "שנה שם",
+                            tint = Color(0xFF6366F1),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "$dateString • ${session.segments.size} חלקים • אורך: ${session.formattedDuration}",
@@ -516,9 +703,13 @@ fun SegmentItemWithPlayer(
     segment: VideoSegment,
     index: Int,
     onSaveClick: () -> Unit,
-    onShareClick: () -> Unit
+    onShareClick: () -> Unit,
+    onToggleChecked: (Boolean) -> Unit,
+    onRenameClick: () -> Unit
 ) {
     var isPlayerExpanded by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var videoViewInstance by remember { mutableStateOf<VideoView?>(null) }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -533,9 +724,18 @@ fun SegmentItemWithPlayer(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Checkbox(
+                        checked = segment.isDownloaded,
+                        onCheckedChange = onToggleChecked,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color(0xFF6366F1),
+                            uncheckedColor = Color(0xFF9CA3AF)
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(36.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFEEF2FF)),
                         contentAlignment = Alignment.Center
@@ -547,13 +747,28 @@ fun SegmentItemWithPlayer(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "חלק ${index + 1}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = Color(0xFF1F2937)
-                        )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = segment.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF1F2937),
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = onRenameClick,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "שנה שם חלק",
+                                    tint = Color(0xFF6366F1),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = formatTimeRange(segment.startMs, segment.endMs),
@@ -565,15 +780,27 @@ fun SegmentItemWithPlayer(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Preview Player Toggle
                     IconButton(
-                        onClick = { isPlayerExpanded = !isPlayerExpanded },
+                        onClick = {
+                            if (!isPlayerExpanded) {
+                                isPlayerExpanded = true
+                                isPlaying = true
+                            } else {
+                                isPlaying = !isPlaying
+                                if (isPlaying) {
+                                    videoViewInstance?.start()
+                                } else {
+                                    videoViewInstance?.pause()
+                                }
+                            }
+                        },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (isPlayerExpanded) Color(0xFF4338CA) else Color(0xFFEEF2FF)
+                            containerColor = if (isPlaying) Color(0xFF4338CA) else Color(0xFFEEF2FF)
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow,
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = "נגן תצוגה מקדימה",
-                            tint = if (isPlayerExpanded) Color.White else Color(0xFF6366F1)
+                            tint = if (isPlaying) Color.White else Color(0xFF6366F1)
                         )
                     }
                     // Share button
@@ -619,12 +846,23 @@ fun SegmentItemWithPlayer(
                             factory = { ctx ->
                                 VideoView(ctx).apply {
                                     setVideoPath(segment.file.absolutePath)
-                                    setMediaController(MediaController(ctx).apply {
-                                        setAnchorView(this@apply)
-                                    })
+                                    setOnCompletionListener {
+                                        isPlaying = false
+                                    }
                                     setOnPreparedListener {
                                         seekTo(1) // Show first frame
+                                        if (isPlaying) {
+                                            start()
+                                        }
                                     }
+                                    videoViewInstance = this
+                                }
+                            },
+                            update = { view ->
+                                if (isPlaying) {
+                                    if (!view.isPlaying) view.start()
+                                } else {
+                                    if (view.isPlaying) view.pause()
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
@@ -662,4 +900,159 @@ private fun formatTimeRange(startMs: Long, endMs: Long): String {
         return "$m:$s"
     }
     return "${format(startMs)} - ${format(endMs)}"
+}
+
+@Composable
+fun GoogleAccountChooserDialog(
+    onAccountSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showCustomEmailInput by remember { mutableStateOf(false) }
+    var customEmail by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(28.dp),
+        title = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(modifier = Modifier.padding(bottom = 8.dp)) {
+                    Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text("o", color = Color(0xFFEA4335), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text("o", color = Color(0xFFFBBC05), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text("g", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text("l", color = Color(0xFF34A853), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text("e", color = Color(0xFFEA4335), fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                }
+                Text(
+                    text = "בחירת חשבון",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = Color(0xFF1F2937),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "כדי להמשיך אל חותך וידאו מהיר AI",
+                    fontSize = 14.sp,
+                    color = Color(0xFF4B5563),
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (!showCustomEmailInput) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAccountSelected("yuvalkarin20@gmail.com") }
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF6366F1)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Y",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = "yuvalkarin20",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color(0xFF1F2937)
+                            )
+                            Text(
+                                text = "yuvalkarin20@gmail.com",
+                                fontSize = 13.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                        }
+                    }
+                    
+                    HorizontalDivider(color = Color(0xFFE5E7EB))
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showCustomEmailInput = true }
+                            .padding(vertical = 16.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "חשבון אחר",
+                            tint = Color(0xFF4B5563)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "השתמש בחשבון אחר",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            color = Color(0xFF4B5563)
+                        )
+                    }
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        OutlinedTextField(
+                            value = customEmail,
+                            onValueChange = { customEmail = it },
+                            label = { Text("כתובת אימייל של Google") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF6366F1),
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                focusedLabelColor = Color(0xFF6366F1),
+                                unfocusedLabelColor = Color(0xFF4B5563)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showCustomEmailInput = false }) {
+                                Text("חזור", color = Color(0xFF4B5563))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (customEmail.isNotBlank() && customEmail.contains("@")) {
+                                        onAccountSelected(customEmail)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                            ) {
+                                Text("המשך")
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "לפני השימוש באפליקציה זו, Google תשתף את שמך, כתובת האימייל ותמונת הפרופיל שלך. ראה את מדיניות הפרטיות ותנאי השירות.",
+                    fontSize = 11.sp,
+                    color = Color(0xFF9CA3AF),
+                    lineHeight = 14.sp
+                )
+            }
+        },
+        confirmButton = {}
+    )
 }

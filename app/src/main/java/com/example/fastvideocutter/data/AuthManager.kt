@@ -133,4 +133,11 @@ object AuthManager {
         }
         return false
     }
+
+    fun loginOrRegisterGoogleUser(context: Context, email: String): Boolean {
+        val pass = "GoogleUserPass123!"
+        val loginSuccess = login(context, email, pass)
+        if (loginSuccess) return true
+        return register(context, email, pass)
+    }
 }

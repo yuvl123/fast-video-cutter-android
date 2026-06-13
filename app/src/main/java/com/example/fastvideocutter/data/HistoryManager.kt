@@ -19,7 +19,8 @@ data class SavedSegment(
     val startMs: Long,
     val endMs: Long,
     val filePath: String,
-    val name: String
+    val name: String,
+    val isDownloaded: Boolean = false
 )
 
 object HistoryManager {
@@ -69,7 +70,8 @@ object HistoryManager {
                             startMs = segObj.getLong("startMs"),
                             endMs = segObj.getLong("endMs"),
                             filePath = segObj.getString("filePath"),
-                            name = segObj.getString("name")
+                            name = segObj.getString("name"),
+                            isDownloaded = segObj.optBoolean("isDownloaded", false)
                         )
                     )
                 }
@@ -122,6 +124,7 @@ object HistoryManager {
                         put("endMs", seg.endMs)
                         put("filePath", seg.filePath)
                         put("name", seg.name)
+                        put("isDownloaded", seg.isDownloaded)
                     }
                     segArray.put(segObj)
                 }
@@ -131,5 +134,57 @@ object HistoryManager {
         }
         
         getHistoryFile(context).writeText(jsonArray.toString())
+    }
+
+    fun renameSession(context: Context, sessionId: String, newName: String) {
+        try {
+            val sessions = loadSessions(context).toMutableList()
+            val index = sessions.indexOfFirst { it.id == sessionId }
+            if (index != -1) {
+                val oldSession = sessions[index]
+                sessions[index] = oldSession.copy(fileName = newName)
+                writeSessions(context, sessions)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to rename session", e)
+        }
+    }
+
+    fun renameSegment(context: Context, sessionId: String, segmentIndex: Int, newName: String) {
+        try {
+            val sessions = loadSessions(context).toMutableList()
+            val sessionIndex = sessions.indexOfFirst { it.id == sessionId }
+            if (sessionIndex != -1) {
+                val session = sessions[sessionIndex]
+                val updatedSegments = session.segments.toMutableList()
+                if (segmentIndex in updatedSegments.indices) {
+                    val oldSeg = updatedSegments[segmentIndex]
+                    updatedSegments[segmentIndex] = oldSeg.copy(name = newName)
+                    sessions[sessionIndex] = session.copy(segments = updatedSegments)
+                    writeSessions(context, sessions)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to rename segment in history", e)
+        }
+    }
+
+    fun toggleSegmentChecked(context: Context, sessionId: String, segmentIndex: Int, checked: Boolean) {
+        try {
+            val sessions = loadSessions(context).toMutableList()
+            val sessionIndex = sessions.indexOfFirst { it.id == sessionId }
+            if (sessionIndex != -1) {
+                val session = sessions[sessionIndex]
+                val updatedSegments = session.segments.toMutableList()
+                if (segmentIndex in updatedSegments.indices) {
+                    val oldSeg = updatedSegments[segmentIndex]
+                    updatedSegments[segmentIndex] = oldSeg.copy(isDownloaded = checked)
+                    sessions[sessionIndex] = session.copy(segments = updatedSegments)
+                    writeSessions(context, sessions)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to toggle segment checked in history", e)
+        }
     }
 }

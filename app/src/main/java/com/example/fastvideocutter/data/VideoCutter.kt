@@ -27,7 +27,8 @@ data class VideoSegment(
     val startMs: Long,
     val endMs: Long,
     val file: File,
-    val name: String
+    val name: String,
+    val isDownloaded: Boolean = false
 )
 
 object VideoCutter {

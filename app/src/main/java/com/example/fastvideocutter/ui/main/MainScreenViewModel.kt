@@ -46,6 +46,9 @@ class MainScreenViewModel : ViewModel() {
     private val _historyList = MutableStateFlow<List<SavedSession>>(emptyList())
     val historyList: StateFlow<List<SavedSession>> = _historyList.asStateFlow()
 
+    private val _activeSessionId = MutableStateFlow<String?>(null)
+    val activeSessionId: StateFlow<String?> = _activeSessionId.asStateFlow()
+
     fun init(context: Context) {
         _userEmail.value = AuthManager.getLoggedInEmail(context)
         loadHistory(context)
@@ -83,11 +86,18 @@ class MainScreenViewModel : ViewModel() {
                 )
                 
                 // Save to History
+                val newSessionId = "session_${System.currentTimeMillis()}"
                 val savedSegments = result.map { seg ->
-                    SavedSegment(seg.startMs, seg.endMs, seg.file.absolutePath, seg.name)
+                    SavedSegment(
+                        startMs = seg.startMs,
+                        endMs = seg.endMs,
+                        filePath = seg.file.absolutePath,
+                        name = seg.name,
+                        isDownloaded = seg.isDownloaded
+                    )
                 }
                 val session = SavedSession(
-                    id = "session_${System.currentTimeMillis()}",
+                    id = newSessionId,
                     fileName = video.name,
                     durationMs = video.durationMs,
                     formattedDuration = video.formattedDuration,
@@ -96,6 +106,7 @@ class MainScreenViewModel : ViewModel() {
                 )
                 HistoryManager.saveSession(context, session)
                 
+                _activeSessionId.value = newSessionId
                 _segments.value = result
                 loadHistory(context) // Reload history list
             } catch (e: Exception) {
@@ -126,9 +137,11 @@ class MainScreenViewModel : ViewModel() {
                 startMs = seg.startMs,
                 endMs = seg.endMs,
                 file = File(seg.filePath),
-                name = seg.name
+                name = seg.name,
+                isDownloaded = seg.isDownloaded
             )
         }
+        _activeSessionId.value = session.id
         _selectedVideo.value = VideoInfo(
             uri = Uri.parse(restoredSegments.first().file.absolutePath), // Mock uri for display
             name = session.fileName,
@@ -139,6 +152,7 @@ class MainScreenViewModel : ViewModel() {
     }
 
     fun clearVideo() {
+        _activeSessionId.value = null
         _selectedVideo.value = null
         _segments.value = emptyList()
         _progress.value = 0
@@ -146,12 +160,13 @@ class MainScreenViewModel : ViewModel() {
     }
 
     // Fixed Toast background thread crash
-    fun saveSegment(context: Context, segment: VideoSegment, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    fun saveSegment(context: Context, segmentIndex: Int, segment: VideoSegment, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch(Dispatchers.Main) { // Execute callback trigger on Main thread
             val savedUri = withContext(Dispatchers.IO) {
                 VideoCutter.saveSegmentToGallery(context, segment)
             }
             if (savedUri != null) {
+                toggleSegmentChecked(context, segmentIndex, true)
                 onSuccess("נשמר בגלריה בהצלחה!")
             } else {
                 onError("שגיאה בשמירת הסרטון")
@@ -176,9 +191,68 @@ class MainScreenViewModel : ViewModel() {
         return success
     }
 
+    fun loginWithGoogle(context: Context, email: String): Boolean {
+        val success = AuthManager.loginOrRegisterGoogleUser(context, email)
+        if (success) {
+            _userEmail.value = email
+            loadHistory(context)
+        }
+        return success
+    }
+
     fun logoutUser(context: Context) {
         AuthManager.logout(context)
         _userEmail.value = null
         clearVideo()
+    }
+
+    // History Renaming and Checkmarks
+    fun renameSession(context: Context, sessionId: String, newName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            HistoryManager.renameSession(context, sessionId, newName)
+            loadHistory(context)
+            
+            // If the active session is the renamed one, update the displayed video info name!
+            if (_activeSessionId.value == sessionId) {
+                val currentVideo = _selectedVideo.value
+                if (currentVideo != null) {
+                    _selectedVideo.value = currentVideo.copy(name = newName)
+                }
+            }
+        }
+    }
+
+    fun renameSegment(context: Context, segmentIndex: Int, newName: String) {
+        val currentSegments = _segments.value.toMutableList()
+        if (segmentIndex in currentSegments.indices) {
+            val oldSeg = currentSegments[segmentIndex]
+            currentSegments[segmentIndex] = oldSeg.copy(name = newName)
+            _segments.value = currentSegments
+            
+            val sessionId = _activeSessionId.value
+            if (sessionId != null) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    HistoryManager.renameSegment(context, sessionId, segmentIndex, newName)
+                    loadHistory(context)
+                }
+            }
+        }
+    }
+
+    fun toggleSegmentChecked(context: Context, segmentIndex: Int, checked: Boolean) {
+        val currentSegments = _segments.value.toMutableList()
+        if (segmentIndex in currentSegments.indices) {
+            val oldSeg = currentSegments[segmentIndex]
+            currentSegments[segmentIndex] = oldSeg.copy(isDownloaded = checked)
+            _segments.value = currentSegments
+            
+            val sessionId = _activeSessionId.value
+            if (sessionId != null) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    HistoryManager.toggleSegmentChecked(context, sessionId, segmentIndex, checked)
+                    loadHistory(context)
+                }
+            }
+        }
     }
 }
