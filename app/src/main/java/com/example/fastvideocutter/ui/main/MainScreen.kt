@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -243,7 +245,8 @@ fun MainScreen(
                                         session = session,
                                         onLoadClick = { viewModel.restoreSession(context, session) },
                                         onDeleteClick = { viewModel.deleteHistoryItem(context, session.id) },
-                                        onRenameClick = { sessionToRename = session }
+                                        onRenameClick = { sessionToRename = session },
+                                        onPinClick = { viewModel.toggleSessionPinned(context, session.id, !session.isPinned) }
                                     )
                                 }
                             }
@@ -638,7 +641,8 @@ fun HistoryItemCard(
     session: SavedSession,
     onLoadClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onRenameClick: () -> Unit
+    onRenameClick: () -> Unit,
+    onPinClick: () -> Unit
 ) {
     val date = Date(session.timestamp)
     val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
@@ -674,6 +678,18 @@ fun HistoryItemCard(
                             contentDescription = "שנה שם",
                             tint = Color(0xFF6366F1),
                             modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onPinClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (session.isPinned) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = if (session.isPinned) "בטל הצמדה" else "הצמד",
+                            tint = if (session.isPinned) Color(0xFFFBBF24) else Color(0xFF9CA3AF),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -767,8 +783,9 @@ fun SegmentItemWithPlayer(
                         }
                     }
                     Spacer(modifier = Modifier.height(2.dp))
+                    val durationSec = ((segment.endMs - segment.startMs) / 1000).toInt()
                     Text(
-                        text = formatTimeRange(segment.startMs, segment.endMs),
+                        text = "${formatTimeRange(segment.startMs, segment.endMs)} ($durationSec שניות)",
                         fontSize = 12.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -842,7 +859,7 @@ fun SegmentItemWithPlayer(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp)
+                            .height(200.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color.Black),
                         contentAlignment = Alignment.Center
@@ -851,6 +868,9 @@ fun SegmentItemWithPlayer(
                             factory = { ctx ->
                                 VideoView(ctx).apply {
                                     setVideoPath(segment.file.absolutePath)
+                                    val mediaController = MediaController(ctx)
+                                    mediaController.setAnchorView(this)
+                                    setMediaController(mediaController)
                                     setOnCompletionListener {
                                         isPlaying = false
                                     }
@@ -872,6 +892,27 @@ fun SegmentItemWithPlayer(
                             },
                             modifier = Modifier.fillMaxSize()
                         )
+                        
+                        // Close button overlay
+                        IconButton(
+                            onClick = {
+                                isPlayerExpanded = false
+                                isPlaying = false
+                                videoViewInstance?.stopPlayback()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(32.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "סגור נגן",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }

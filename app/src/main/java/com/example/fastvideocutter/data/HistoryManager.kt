@@ -13,7 +13,8 @@ data class SavedSession(
     val formattedDuration: String,
     val timestamp: Long,
     val segments: List<SavedSegment>,
-    val isCloud: Boolean = false
+    val isCloud: Boolean = false,
+    val isPinned: Boolean = false
 )
 
 data class SavedSegment(
@@ -61,6 +62,7 @@ object HistoryManager {
                 val durationMs = sObj.getLong("durationMs")
                 val formattedDuration = sObj.getString("formattedDuration")
                 val timestamp = sObj.getLong("timestamp")
+                val isPinned = sObj.optBoolean("isPinned", false)
                 
                 val segArray = sObj.getJSONArray("segments")
                 val segments = mutableListOf<SavedSegment>()
@@ -80,7 +82,7 @@ object HistoryManager {
                 // Only include if the segment files actually exist
                 val validSegments = segments.filter { File(it.filePath).exists() }
                 if (validSegments.isNotEmpty()) {
-                    sessions.add(SavedSession(id, fileName, durationMs, formattedDuration, timestamp, validSegments))
+                    sessions.add(SavedSession(id, fileName, durationMs, formattedDuration, timestamp, validSegments, isPinned = isPinned))
                 }
             }
             return sessions
@@ -117,6 +119,7 @@ object HistoryManager {
                 put("durationMs", session.durationMs)
                 put("formattedDuration", session.formattedDuration)
                 put("timestamp", session.timestamp)
+                put("isPinned", session.isPinned)
                 
                 val segArray = JSONArray()
                 for (seg in session.segments) {
@@ -186,6 +189,20 @@ object HistoryManager {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to toggle segment checked in history", e)
+        }
+    }
+
+    fun toggleSessionPinned(context: Context, sessionId: String, isPinned: Boolean) {
+        try {
+            val sessions = loadSessions(context).toMutableList()
+            val index = sessions.indexOfFirst { it.id == sessionId }
+            if (index != -1) {
+                val oldSession = sessions[index]
+                sessions[index] = oldSession.copy(isPinned = isPinned)
+                writeSessions(context, sessions)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to toggle session pinned", e)
         }
     }
 }

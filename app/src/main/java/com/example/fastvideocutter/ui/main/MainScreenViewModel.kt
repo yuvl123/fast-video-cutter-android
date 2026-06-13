@@ -137,11 +137,32 @@ class MainScreenViewModel : ViewModel() {
                 val cloud = CloudSyncManager.fetchCloudSessions(currentUser.uid)
                 val merged = (local + cloud).groupBy { it.id }.map { entry ->
                     entry.value.find { !it.isCloud } ?: entry.value.first()
-                }.sortedByDescending { it.timestamp }
+                }.sortedWith(
+                    compareByDescending<SavedSession> { it.isPinned }
+                        .thenByDescending { it.timestamp }
+                )
                 _historyList.value = merged
             } else {
-                _historyList.value = local
+                _historyList.value = local.sortedWith(
+                    compareByDescending<SavedSession> { it.isPinned }
+                        .thenByDescending { it.timestamp }
+                )
             }
+        }
+    }
+
+    fun toggleSessionPinned(context: Context, sessionId: String, isPinned: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            HistoryManager.toggleSessionPinned(context, sessionId, isPinned)
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            if (currentUser != null) {
+                val sessions = HistoryManager.loadSessions(context)
+                val session = sessions.find { it.id == sessionId }
+                if (session != null) {
+                    CloudSyncManager.uploadSessionToCloud(context, currentUser.uid, session)
+                }
+            }
+            loadHistory(context)
         }
     }
 

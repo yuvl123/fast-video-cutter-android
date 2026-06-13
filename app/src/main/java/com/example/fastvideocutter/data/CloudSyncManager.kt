@@ -49,7 +49,8 @@ object CloudSyncManager {
                     .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
                     .format(java.util.Date(session.timestamp)),
                 "cloudChunks" to cloudChunksList,
-                "hasCloudData" to true
+                "hasCloudData" to true,
+                "isPinned" to session.isPinned
             )
             
             Tasks.await(sessionDocRef.set(sessionData))
@@ -115,6 +116,7 @@ object CloudSyncManager {
                 val durationSec = doc.getDouble("duration") ?: 60.0
                 val chunksCount = doc.getLong("chunksCount") ?: 1
                 val timestampStr = doc.getString("timestamp") ?: ""
+                val isPinned = doc.getBoolean("isPinned") ?: false
                 
                 val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                 val timestamp = try {
@@ -160,7 +162,8 @@ object CloudSyncManager {
                         formattedDuration = formatted,
                         timestamp = timestamp,
                         segments = segments,
-                        isCloud = true
+                        isCloud = true,
+                        isPinned = isPinned
                     )
                 )
             }
