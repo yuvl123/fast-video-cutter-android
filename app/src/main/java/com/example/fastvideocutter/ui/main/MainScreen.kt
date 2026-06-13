@@ -773,58 +773,66 @@ fun SegmentItemWithPlayer(
                         color = Color(0xFF6B7280)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // Preview Player Toggle
-                    IconButton(
-                        onClick = {
-                            if (!isPlayerExpanded) {
-                                isPlayerExpanded = true
-                                isPlaying = true
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Preview Player Toggle
+                IconButton(
+                    onClick = {
+                        if (!isPlayerExpanded) {
+                            isPlayerExpanded = true
+                            isPlaying = true
+                        } else {
+                            isPlaying = !isPlaying
+                            if (isPlaying) {
+                                videoViewInstance?.start()
                             } else {
-                                isPlaying = !isPlaying
-                                if (isPlaying) {
-                                    videoViewInstance?.start()
-                                } else {
-                                    videoViewInstance?.pause()
-                                }
+                                videoViewInstance?.pause()
                             }
-                        },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (isPlaying) Color(0xFF4338CA) else Color(0xFFEEF2FF)
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = "נגן תצוגה מקדימה",
-                            tint = if (isPlaying) Color.White else Color(0xFF6366F1)
-                        )
-                    }
-                    // Share button
-                    IconButton(
-                        onClick = onShareClick,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFEEF2FF))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "שתף",
-                            tint = Color(0xFF6366F1)
-                        )
-                    }
-                    // Save button
-                    Button(
-                        onClick = onSaveClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEEF2FF)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "שמור לגלריה",
-                            color = Color(0xFF6366F1),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
+                        }
+                    },
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = if (isPlaying) Color(0xFF4338CA) else Color(0xFFEEF2FF)
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "נגן תצוגה מקדימה",
+                        tint = if (isPlaying) Color.White else Color(0xFF6366F1)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // Share button
+                IconButton(
+                    onClick = onShareClick,
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFEEF2FF))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "שתף",
+                        tint = Color(0xFF6366F1)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // Save button
+                Button(
+                    onClick = onSaveClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEEF2FF)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "שמור לגלריה",
+                        color = Color(0xFF6366F1),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
                 }
             }
 
