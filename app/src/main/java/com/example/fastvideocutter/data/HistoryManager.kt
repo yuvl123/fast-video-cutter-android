@@ -79,11 +79,8 @@ object HistoryManager {
                     )
                 }
                 
-                // Only include if the segment files actually exist
-                val validSegments = segments.filter { File(it.filePath).exists() }
-                if (validSegments.isNotEmpty()) {
-                    sessions.add(SavedSession(id, fileName, durationMs, formattedDuration, timestamp, validSegments, isPinned = isPinned))
-                }
+                // Add session directly without filtering missing local files
+                sessions.add(SavedSession(id, fileName, durationMs, formattedDuration, timestamp, segments, isPinned = isPinned))
             }
             return sessions
         } catch (e: Exception) {

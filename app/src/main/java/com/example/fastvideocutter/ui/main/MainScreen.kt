@@ -20,13 +20,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -127,13 +128,28 @@ fun MainScreen(
                             )
                         }
                     },
+                    navigationIcon = {
+                        if (selectedVideo != null) {
+                            IconButton(onClick = { viewModel.clearVideo() }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "חזור",
+                                    tint = Color(0xFF1E1B4B)
+                                )
+                            }
+                        }
+                    },
                     actions = {
-                        IconButton(onClick = { viewModel.logoutUser(context) }) {
-                            Icon(
-                                imageVector = Icons.Default.ExitToApp,
-                                contentDescription = "התנתק",
-                                tint = Color(0xFFEF4444)
-                            )
+                        if (selectedVideo == null) {
+                            IconButton(onClick = { viewModel.logoutUser(context) }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                    contentDescription = "התנתק",
+                                    tint = Color(0xFFEF4444)
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.width(48.dp))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
