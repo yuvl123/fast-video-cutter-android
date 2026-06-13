@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fastvideocutter.data.AuthManager
+import com.example.fastvideocutter.data.CloudSyncManager
 import com.example.fastvideocutter.data.HistoryManager
 import com.example.fastvideocutter.data.SavedSegment
 import com.example.fastvideocutter.data.SavedSession
@@ -109,6 +110,15 @@ class MainScreenViewModel : ViewModel() {
                 _activeSessionId.value = newSessionId
                 _segments.value = result
                 loadHistory(context) // Reload history list
+
+                val email = AuthManager.getLoggedInEmail(context)
+                val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                if (email != null && currentUser != null) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        CloudSyncManager.uploadSessionToCloud(context, currentUser.uid, session)
+                        loadHistory(context)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Cutting failed", e)
                 _errorMessage.value = "החיתוך נכשל: ${e.message}"
@@ -120,35 +130,104 @@ class MainScreenViewModel : ViewModel() {
 
     fun loadHistory(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            _historyList.value = HistoryManager.loadSessions(context)
+            val local = HistoryManager.loadSessions(context)
+            val email = AuthManager.getLoggedInEmail(context)
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            if (email != null && currentUser != null) {
+                val cloud = CloudSyncManager.fetchCloudSessions(currentUser.uid)
+                val merged = (local + cloud).groupBy { it.id }.map { entry ->
+                    entry.value.find { !it.isCloud } ?: entry.value.first()
+                }.sortedByDescending { it.timestamp }
+                _historyList.value = merged
+            } else {
+                _historyList.value = local
+            }
         }
     }
 
     fun deleteHistoryItem(context: Context, sessionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             HistoryManager.deleteSession(context, sessionId)
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            if (currentUser != null) {
+                CloudSyncManager.deleteSessionFromCloud(currentUser.uid, sessionId)
+            }
             loadHistory(context)
         }
     }
 
-    fun restoreSession(session: SavedSession) {
-        val restoredSegments = session.segments.map { seg ->
-            VideoSegment(
-                startMs = seg.startMs,
-                endMs = seg.endMs,
-                file = File(seg.filePath),
-                name = seg.name,
-                isDownloaded = seg.isDownloaded
-            )
+    fun restoreSession(context: Context, session: SavedSession) {
+        viewModelScope.launch(Dispatchers.Main) {
+            val needsDownload = session.segments.any { it.filePath.isBlank() || !File(it.filePath).exists() }
+            val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            
+            if (needsDownload && currentUser != null) {
+                _isProcessing.value = true
+                _progress.value = 0
+                _errorMessage.value = null
+                
+                val downloadedSegments = withContext(Dispatchers.IO) {
+                    val list = mutableListOf<VideoSegment>()
+                    val total = session.segments.size
+                    session.segments.forEachIndexed { index, seg ->
+                        val cacheFile = File(context.cacheDir, "segments/cloud_${session.id}_part_${index + 1}.mp4")
+                        val success = CloudSyncManager.downloadSegmentFromCloud(
+                            context = context,
+                            userId = currentUser.uid,
+                            sessionId = session.id,
+                            chunkIndex = index,
+                            destFile = cacheFile
+                        )
+                        if (success) {
+                            list.add(
+                                VideoSegment(
+                                    startMs = seg.startMs,
+                                    endMs = seg.endMs,
+                                    file = cacheFile,
+                                    name = seg.name,
+                                    isDownloaded = seg.isDownloaded
+                                )
+                            )
+                        }
+                        val prog = ((index + 1) * 100) / total
+                        _progress.value = prog
+                    }
+                    list
+                }
+                
+                _isProcessing.value = false
+                if (downloadedSegments.size == session.segments.size) {
+                    _activeSessionId.value = session.id
+                    _selectedVideo.value = VideoInfo(
+                        uri = Uri.parse(downloadedSegments.first().file.absolutePath),
+                        name = session.fileName,
+                        durationMs = session.durationMs,
+                        formattedDuration = session.formattedDuration
+                    )
+                    _segments.value = downloadedSegments
+                } else {
+                    _errorMessage.value = "שגיאה בהורדת קבצי הוידאו מהענן"
+                }
+            } else {
+                val restoredSegments = session.segments.map { seg ->
+                    VideoSegment(
+                        startMs = seg.startMs,
+                        endMs = seg.endMs,
+                        file = File(seg.filePath),
+                        name = seg.name,
+                        isDownloaded = seg.isDownloaded
+                    )
+                }
+                _activeSessionId.value = session.id
+                _selectedVideo.value = VideoInfo(
+                    uri = Uri.parse(restoredSegments.first().file.absolutePath),
+                    name = session.fileName,
+                    durationMs = session.durationMs,
+                    formattedDuration = session.formattedDuration
+                )
+                _segments.value = restoredSegments
+            }
         }
-        _activeSessionId.value = session.id
-        _selectedVideo.value = VideoInfo(
-            uri = Uri.parse(restoredSegments.first().file.absolutePath), // Mock uri for display
-            name = session.fileName,
-            durationMs = session.durationMs,
-            formattedDuration = session.formattedDuration
-        )
-        _segments.value = restoredSegments
     }
 
     fun clearVideo() {

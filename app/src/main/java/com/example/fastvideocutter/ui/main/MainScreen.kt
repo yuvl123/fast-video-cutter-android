@@ -241,7 +241,7 @@ fun MainScreen(
                                 itemsIndexed(historyList) { _, session ->
                                     HistoryItemCard(
                                         session = session,
-                                        onLoadClick = { viewModel.restoreSession(session) },
+                                        onLoadClick = { viewModel.restoreSession(context, session) },
                                         onDeleteClick = { viewModel.deleteHistoryItem(context, session.id) },
                                         onRenameClick = { sessionToRename = session }
                                     )
@@ -720,63 +720,60 @@ fun SegmentItemWithPlayer(
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Checkbox(
-                        checked = segment.isDownloaded,
-                        onCheckedChange = onToggleChecked,
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Color(0xFF6366F1),
-                            uncheckedColor = Color(0xFF9CA3AF)
-                        )
+                Checkbox(
+                    checked = segment.isDownloaded,
+                    onCheckedChange = onToggleChecked,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = Color(0xFF6366F1),
+                        uncheckedColor = Color(0xFF9CA3AF)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFEEF2FF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "${index + 1}",
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6366F1)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = segment.name,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color(0xFF1F2937),
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            IconButton(
-                                onClick = onRenameClick,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "שנה שם חלק",
-                                    tint = Color(0xFF6366F1),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = formatTimeRange(segment.startMs, segment.endMs),
-                            fontSize = 12.sp,
-                            color = Color(0xFF6B7280)
-                        )
-                    }
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFEEF2FF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "${index + 1}",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF6366F1)
+                    )
                 }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = segment.name,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF1F2937)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onRenameClick,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "שנה שם חלק",
+                                tint = Color(0xFF6366F1),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = formatTimeRange(segment.startMs, segment.endMs),
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Preview Player Toggle
                     IconButton(

@@ -12,7 +12,8 @@ data class SavedSession(
     val durationMs: Long,
     val formattedDuration: String,
     val timestamp: Long,
-    val segments: List<SavedSegment>
+    val segments: List<SavedSegment>,
+    val isCloud: Boolean = false
 )
 
 data class SavedSegment(
