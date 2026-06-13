@@ -34,8 +34,8 @@ object CloudSyncManager {
             // Map segments metadata first
             session.segments.forEachIndexed { index, seg ->
                 cloudChunksList.add(mapOf(
-                    "start" to (seg.startMs / 1000).toInt(),
-                    "end" to (seg.endMs / 1000).toInt(),
+                    "start" to (seg.startMs / 1000.0),
+                    "end" to (seg.endMs / 1000.0),
                     "url" to "firestore",
                     "ext" to "mp4"
                 ))
@@ -131,15 +131,17 @@ object CloudSyncManager {
                 
                 if (cloudChunks != null) {
                     cloudChunks.forEachIndexed { i, cc ->
-                        val startSec = (cc["start"] as? Number)?.toLong() ?: (i * 10L)
-                        val endSec = (cc["end"] as? Number)?.toLong() ?: ((i + 1) * 10L)
-                        val name = "חלק ${i + 1} (${formatTime(startSec * 1000)} - ${formatTime(endSec * 1000)})"
+                        val startSec = (cc["start"] as? Number)?.toDouble() ?: (i * 10.0)
+                        val endSec = (cc["end"] as? Number)?.toDouble() ?: ((i + 1) * 10.0)
+                        val startMs = (startSec * 1000).toLong()
+                        val endMs = (endSec * 1000).toLong()
+                        val name = "חלק ${i + 1} (${formatTime(startMs)} - ${formatTime(endMs)})"
                         
                         // Local path placeholder
                         segments.add(
                             SavedSegment(
-                                startMs = startSec * 1000,
-                                endMs = endSec * 1000,
+                                startMs = startMs,
+                                endMs = endMs,
                                 filePath = "", // Placeholder: will be downloaded on demand
                                 name = name,
                                 isDownloaded = false

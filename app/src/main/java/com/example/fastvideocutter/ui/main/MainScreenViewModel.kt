@@ -50,6 +50,40 @@ class MainScreenViewModel : ViewModel() {
     private val _activeSessionId = MutableStateFlow<String?>(null)
     val activeSessionId: StateFlow<String?> = _activeSessionId.asStateFlow()
 
+    // Custom Cut Configs
+    private val _cutMode = MutableStateFlow("seconds") // "seconds" or "parts"
+    val cutMode: StateFlow<String> = _cutMode.asStateFlow()
+
+    private val _selectedSeconds = MutableStateFlow(10) // default 10 seconds
+    val selectedSeconds: StateFlow<Int> = _selectedSeconds.asStateFlow()
+
+    private val _selectedPartsCount = MutableStateFlow(2) // default 2 parts (half)
+    val selectedPartsCount: StateFlow<Int> = _selectedPartsCount.asStateFlow()
+
+    // Search query for history
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    // Save All state
+    private val _isSavingAll = MutableStateFlow(false)
+    val isSavingAll: StateFlow<Boolean> = _isSavingAll.asStateFlow()
+
+    fun setCutMode(mode: String) {
+        _cutMode.value = mode
+    }
+
+    fun setSelectedSeconds(seconds: Int) {
+        _selectedSeconds.value = seconds
+    }
+
+    fun setSelectedPartsCount(parts: Int) {
+        _selectedPartsCount.value = parts
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
     fun init(context: Context) {
         _userEmail.value = AuthManager.getLoggedInEmail(context)
         loadHistory(context)
@@ -70,6 +104,10 @@ class MainScreenViewModel : ViewModel() {
 
     fun startCutting(context: Context) {
         val video = _selectedVideo.value ?: return
+        val mode = _cutMode.value
+        val seconds = _selectedSeconds.value
+        val parts = _selectedPartsCount.value
+
         _isProcessing.value = true
         _progress.value = 0
         _errorMessage.value = null
@@ -77,10 +115,15 @@ class MainScreenViewModel : ViewModel() {
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                val segmentDurationMs = seconds * 1000L
+                val numParts = if (mode == "parts") parts else null
+
                 val result = VideoCutter.splitVideo(
                     context = context,
                     videoUri = video.uri,
                     durationMs = video.durationMs,
+                    segmentDurationMs = segmentDurationMs,
+                    numParts = numParts,
                     onProgress = { p ->
                         _progress.value = p
                     }
@@ -270,6 +313,55 @@ class MainScreenViewModel : ViewModel() {
                 onSuccess("נשמר בגלריה בהצלחה!")
             } else {
                 onError("שגיאה בשמירת הסרטון")
+            }
+        }
+    }
+
+    fun saveAllSegmentsToGallery(
+        context: Context,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val currentSegments = _segments.value
+        if (currentSegments.isEmpty()) {
+            onError("אין חלקים לשמירה")
+            return
+        }
+
+        _isSavingAll.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            var allSaved = true
+            var savedCount = 0
+
+            for (index in currentSegments.indices) {
+                val segment = currentSegments[index]
+                try {
+                    val savedUri = VideoCutter.saveSegmentToGallery(context, segment)
+                    if (savedUri != null) {
+                        withContext(Dispatchers.Main) {
+                            toggleSegmentChecked(context, index, true)
+                        }
+                        savedCount++
+                    } else {
+                        allSaved = false
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to save segment $index", e)
+                    allSaved = false
+                }
+                // Small sleep to ensure unique timestamps / chronological ordering in Android's MediaStore
+                Thread.sleep(150)
+            }
+
+            withContext(Dispatchers.Main) {
+                _isSavingAll.value = false
+                if (allSaved) {
+                    onSuccess("כל $savedCount החלקים נשמרו בגלריה בהצלחה!")
+                } else if (savedCount > 0) {
+                    onSuccess("$savedCount חלקים נשמרו בהצלחה. חלק מהחלקים נכשלו.")
+                } else {
+                    onError("שגיאה בשמירת החלקים")
+                }
             }
         }
     }

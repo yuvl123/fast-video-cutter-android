@@ -76,18 +76,31 @@ object VideoCutter {
         videoUri: Uri,
         durationMs: Long,
         segmentDurationMs: Long = 10000L,
+        numParts: Int? = null,
         onProgress: (Int) -> Unit
     ): List<VideoSegment> {
         val segments = mutableListOf<VideoSegment>()
-        val numSegments = ceil(durationMs.toDouble() / segmentDurationMs.toDouble()).toInt()
+        val numSegments = if (numParts != null && numParts > 0) {
+            numParts
+        } else {
+            ceil(durationMs.toDouble() / segmentDurationMs.toDouble()).toInt()
+        }
         val cacheDir = File(context.cacheDir, "segments").apply {
             if (exists()) deleteRecursively()
             mkdirs()
         }
         
         for (i in 0 until numSegments) {
-            val startMs = i * segmentDurationMs
-            val endMs = minOf((i + 1) * segmentDurationMs, durationMs)
+            val startMs = if (numParts != null && numParts > 0) {
+                (i * durationMs) / numParts
+            } else {
+                i * segmentDurationMs
+            }
+            val endMs = if (numParts != null && numParts > 0) {
+                ((i + 1) * durationMs) / numParts
+            } else {
+                minOf((i + 1) * segmentDurationMs, durationMs)
+            }
             val segmentName = "חלק ${i + 1} (${formatTime(startMs)} - ${formatTime(endMs)})"
             val segmentFile = File(cacheDir, "part_${i + 1}.mp4")
             

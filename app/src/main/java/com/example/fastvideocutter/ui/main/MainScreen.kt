@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -72,6 +73,12 @@ fun MainScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val userEmail by viewModel.userEmail.collectAsStateWithLifecycle()
     val historyList by viewModel.historyList.collectAsStateWithLifecycle()
+
+    val cutMode by viewModel.cutMode.collectAsStateWithLifecycle()
+    val selectedSeconds by viewModel.selectedSeconds.collectAsStateWithLifecycle()
+    val selectedPartsCount by viewModel.selectedPartsCount.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val isSavingAll by viewModel.isSavingAll.collectAsStateWithLifecycle()
 
     var showGoogleDialog by remember { mutableStateOf(false) }
     var sessionToRename by remember { mutableStateOf<SavedSession?>(null) }
@@ -239,6 +246,50 @@ fun MainScreen(
                             textAlign = TextAlign.Right
                         )
 
+                        val filteredHistoryList = remember(historyList, searchQuery) {
+                            if (searchQuery.isBlank()) {
+                                historyList
+                            } else {
+                                historyList.filter { it.fileName.contains(searchQuery, ignoreCase = true) }
+                            }
+                        }
+
+                        if (historyList.isNotEmpty()) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.setSearchQuery(it) },
+                                placeholder = { Text("חפש סרטון בהיסטוריה...", color = Color(0xFF9CA3AF)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "חיפוש",
+                                        tint = Color(0xFF6366F1)
+                                    )
+                                },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Clear,
+                                                contentDescription = "נקה",
+                                                tint = Color(0xFF9CA3AF)
+                                            )
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF6366F1),
+                                    unfocusedBorderColor = Color(0xFFE5E7EB),
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black
+                                )
+                            )
+                        }
+
                         if (historyList.isEmpty()) {
                             Box(
                                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -251,12 +302,24 @@ fun MainScreen(
                                     fontSize = 14.sp
                                 )
                             }
+                        } else if (filteredHistoryList.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().weight(1f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "לא נמצאו סרטונים התואמים את החיפוש.",
+                                    color = Color(0xFF9CA3AF),
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 14.sp
+                                )
+                            }
                         } else {
                             LazyColumn(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.weight(1f).fillMaxWidth()
                             ) {
-                                itemsIndexed(historyList) { _, session ->
+                                itemsIndexed(filteredHistoryList) { _, session ->
                                     HistoryItemCard(
                                         session = session,
                                         onLoadClick = { viewModel.restoreSession(context, session) },
@@ -314,6 +377,192 @@ fun MainScreen(
 
                     // Actions & Progress
                     if (!isProcessing && segments.isEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "אפשרויות חיתוך",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color(0xFF1E1B4B),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Right
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                // Tab Selector
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFF3F4F6))
+                                        .padding(4.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    val modes = listOf(
+                                        "seconds" to "לפי שניות",
+                                        "parts" to "לפי חלקים"
+                                    )
+                                    modes.forEach { (modeKey, modeLabel) ->
+                                        val isSelected = cutMode == modeKey
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (isSelected) Color.White else Color.Transparent)
+                                                .clickable { viewModel.setCutMode(modeKey) }
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = modeLabel,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) Color(0xFF6366F1) else Color(0xFF4B5563),
+                                                fontSize = 14.sp
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                if (cutMode == "seconds") {
+                                    Column {
+                                        Text(
+                                            text = "אורך כל חלק (שניות):",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = TextAlign.Right
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        // Presets
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            val presets = listOf(5, 10, 15, 20, 30)
+                                            presets.forEach { sec ->
+                                                val isPresetSelected = selectedSeconds == sec
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (isPresetSelected) Color(0xFF6366F1) else Color(0xFFEEF2FF))
+                                                        .clickable { viewModel.setSelectedSeconds(sec) }
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = "$sec שנ'",
+                                                        color = if (isPresetSelected) Color.White else Color(0xFF6366F1),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        
+                                        // Stepper
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "אורך מותאם אישית:",
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF4B5563)
+                                            )
+                                            
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                IconButton(
+                                                    onClick = { if (selectedSeconds > 1) viewModel.setSelectedSeconds(selectedSeconds - 1) },
+                                                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFF3F4F6)),
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Text("-", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
+                                                }
+                                                
+                                                Text(
+                                                    text = "$selectedSeconds שניות",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp,
+                                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                                    color = Color.Black
+                                                )
+                                                
+                                                IconButton(
+                                                    onClick = { viewModel.setSelectedSeconds(selectedSeconds + 1) },
+                                                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFF3F4F6)),
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Text("+", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Column {
+                                        Text(
+                                            text = "חלוקה לחלקים שווים ומדויקים:",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = TextAlign.Right
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly
+                                        ) {
+                                            val partsPresets = listOf(
+                                                2 to "חצי (2 חלקים)",
+                                                3 to "שליש (3 חלקים)"
+                                            )
+                                            partsPresets.forEach { (parts, label) ->
+                                                val isPartsSelected = selectedPartsCount == parts
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(horizontal = 6.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (isPartsSelected) Color(0xFF6366F1) else Color(0xFFEEF2FF))
+                                                        .clickable { viewModel.setSelectedPartsCount(parts) }
+                                                        .padding(vertical = 12.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = label,
+                                                        color = if (isPartsSelected) Color.White else Color(0xFF6366F1),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 14.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val cutButtonText = when (cutMode) {
+                            "seconds" -> "חתוך לחלקים של $selectedSeconds שניות"
+                            "parts" -> "חתוך ל-$selectedPartsCount חלקים שווים"
+                            else -> "חתוך עכשיו"
+                        }
+
                         Button(
                             onClick = { viewModel.startCutting(context) },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
@@ -321,7 +570,7 @@ fun MainScreen(
                             modifier = Modifier.fillMaxWidth().height(56.dp)
                         ) {
                             Text(
-                                text = "חתוך עכשיו ל-10 שניות",
+                                text = cutButtonText,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = Color.White
@@ -355,14 +604,44 @@ fun MainScreen(
 
                     // Result segments list
                     if (segments.isNotEmpty()) {
-                        Text(
-                            text = "הושלם! ${segments.size} חלקים מוכנים",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color(0xFF1E1B4B),
+                        Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
-                            textAlign = TextAlign.Right
-                        )
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "הושלם! ${segments.size} חלקים מוכנים",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color(0xFF1E1B4B)
+                            )
+                            
+                            Button(
+                                onClick = {
+                                    viewModel.saveAllSegmentsToGallery(
+                                        context = context,
+                                        onSuccess = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() },
+                                        onError = { err -> Toast.makeText(context, err, Toast.LENGTH_SHORT).show() }
+                                    )
+                                },
+                                enabled = !isSavingAll,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                if (isSavingAll) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("שומר...", color = Color.White, fontSize = 12.sp)
+                                } else {
+                                    Text("שמור הכל לפי הסדר", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                         
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
